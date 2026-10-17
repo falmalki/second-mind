@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ar" dir="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Second Mind</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--fg:#1f2328;--mut:#6b7280;--bd:#e5e7eb;--acc:#2563eb}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--fg:#e6e6e6;--mut:#9aa1ab;--bd:#2a2f38;--acc:#60a5fa}}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Noto Naskh Arabic","Noto Sans Arabic",Tahoma,sans-serif;background:var(--bg);color:var(--fg)}
+header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--bd);padding:12px 16px;z-index:5}
+h1{margin:0 0 8px;font-size:20px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input,select,button{font:inherit;padding:6px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--fg)}
+#q{flex:1 1 240px;min-width:200px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{cursor:pointer;padding:3px 10px;border-radius:999px;border:1px solid var(--bd);font-size:13px;user-select:none;background:var(--card)}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+main{max-width:980px;margin:0 auto;padding:16px;display:grid;gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.card h2{margin:0 0 6px;font-size:17px}
+.meta{font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.badge{padding:1px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--bd)}
+.summary{line-height:1.8;white-space:pre-wrap}
+.tweet{margin-top:8px;padding:8px 12px;border-inline-start:3px solid var(--acc);color:var(--mut);white-space:pre-wrap;font-size:14px}
+a{color:var(--acc)}
+#count{color:var(--mut);font-size:13px}
+.empty{text-align:center;color:var(--mut);padding:40px}
+mark{background:#fde68a;color:inherit}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧠 Second Mind</h1>
+  <div class="controls">
+    <input id="q" type="search" placeholder="Search… / ابحث…" dir="auto">
+    <select id="type"><option value="">All types</option></select>
+    <select id="section"><option value="">All sections</option></select>
+    <select id="sort"><option value="desc">Newest first</option><option value="asc">Oldest first</option></select>
+    <button id="reset">Reset</button>
+    <span id="count"></span>
+  </div>
+  <div class="tags" id="tags"></div>
+</header>
+<main id="list"><div class="empty">Loading…</div></main>
+<script>
+const $=s=>document.querySelector(s);
+let notes=[],selTags=new Set();
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hl=(s,q)=>{s=esc(s);if(!q)return s;const r=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');return s.replace(r,m=>`<mark>${m}</mark>`)};
+const fill=(sel,vals)=>vals.forEach(v=>{const o=document.createElement('option');o.value=o.textContent=v;sel.appendChild(o)});
+function readHash(){const p=new URLSearchParams(location.hash.slice(1));$('#q').value=p.get('q')||'';$('#type').value=p.get('type')||'';$('#section').value=p.get('section')||'';$('#sort').value=p.get('sort')||'desc';selTags=new Set((p.get('tags')||'').split(',').filter(Boolean))}
+function writeHash(){const p=new URLSearchParams();[['q','#q'],['type','#type'],['section','#section']].forEach(([k,s])=>{if($(s).value)p.set(k,$(s).value)});if($('#sort').value!=='desc')p.set('sort','asc');if(selTags.size)p.set('tags',[...selTags].join(','));history.replaceState(null,'','#'+p.toString())}
+function render(){
+  const q=$('#q').value.trim().toLowerCase(),t=$('#type').value,s=$('#section').value,dir=$('#sort').value;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',selTags.has(c.dataset.t)));
+  let r=notes.filter(n=>(!t||n.type===t)&&(!s||n.section===s)&&[...selTags].every(x=>(n.tags||[]).includes(x))&&
+    (!q||[n.title,n.summary,n.tweet_text,n.author,n.section,(n.tags||[]).join(' ')].join(' ').toLowerCase().includes(q)));
+  r.sort((a,b)=>(dir==='asc'?1:-1)*String(a.date||'').localeCompare(String(b.date||'')));
+  $('#count').textContent=`${r.length} / ${notes.length}`;
+  $('#list').innerHTML=r.length?r.map(n=>`<article class="card">
+    <h2 dir="auto">${hl(n.title,q)}</h2>
+    <div class="meta">${n.type?`<span class="badge">${esc(n.type)}</span>`:''}${n.section?`<span class="badge" dir="auto">${esc(n.section)}</span>`:''}${(n.tags||[]).map(x=>`<span class="badge">#${esc(x)}</span>`).join('')}${n.date?`<span>${esc(n.date)}</span>`:''}${n.author?`<span dir="auto">${hl(n.author,q)}</span>`:''}${n.link?`<a href="${esc(n.link)}" target="_blank" rel="noopener">Open ↗</a>`:''}</div>
+    ${n.summary?`<div class="summary" dir="auto">${hl(n.summary,q)}</div>`:''}
+    ${n.tweet_text?`<div class="tweet" dir="auto">${hl(n.tweet_text,q)}</div>`:''}
+  </article>`).join(''):`<div class="empty">${notes.length?'No matches.':'No notes yet.'}</div>`;
+  writeHash();
+}
+fetch('notes.json?'+Date.now()).then(r=>r.json()).then(d=>{
+  notes=Array.isArray(d)?d:(d.notes||[]);
+  const uniq=f=>[...new Set(notes.flatMap(f).filter(Boolean))].sort();
+  fill($('#type'),[...new Set(['Idea','Note','News',...uniq(n=>[n.type])])]);
+  fill($('#section'),uniq(n=>[n.section]));
+  const tags=[...new Set(['AI','Tech','Business','Science','Politics','Saudi/Gulf','Other',...uniq(n=>n.tags||[])])];
+  $('#tags').innerHTML=tags.map(x=>`<span class="chip" data-t="${esc(x)}">${esc(x)}</span>`).join('');
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{selTags.has(c.dataset.t)?selTags.delete(c.dataset.t):selTags.add(c.dataset.t);render()});
+  readHash();render();
+}).catch(e=>{$('#list').innerHTML=`<div class="empty">Could not load notes.json (${esc(e.message)})</div>`});
+['#q','#type','#section','#sort'].forEach(s=>$(s).addEventListener('input',render));
+$('#reset').onclick=()=>{$('#q').value='';$('#type').value='';$('#section').value='';$('#sort').value='desc';selTags.clear();render()};
+</script>
+</body>
+</html>
